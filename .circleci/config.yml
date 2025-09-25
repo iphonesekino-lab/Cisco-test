@@ -1,45 +1,27 @@
 version: 2.1
 jobs:
-  mkdir_on_centos:
-    machine:
-      enabled: true
-    resource_class: network-test/circleci-test # ここはcircle側のリソースクラスに合わせる
+  config_cisco:
+    machine: true
+    resource_class: network-test/circleci-test
     steps:
-      - checkout
-
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:KN4ZGGpYs7D7XnjHCUUEsCsWu6ASmJf7jiyVoSI755Q" #ここもcircle側のリソースクラスに紐づいたSSH_KEYにする
-
+            - "SHA256:xfRLHtQ9xrfDH5YiDgqH70aBa6o26LVvxCVmO+QUIOA"
       - run:
-          name: Add CentOS host key safely
+          name: Configure Cisco Hostname
           command: |
             set -euo pipefail
-            mkdir -p ~/.ssh
-            # 既存のエントリを削除（IP/ホスト名どちらでも）
-            ssh-keygen -R "$CENTOS_HOST" >/dev/null 2>&1 || true
-            # 取得して known_hosts に追加
-            ssh-keyscan -T 10 -H "$CENTOS_HOST" >> ~/.ssh/known_hosts
-            # 取れているか検証
-            ssh-keygen -F "$CENTOS_HOST" -f ~/.ssh/known_hosts >/dev/null
-
-      - run:
-          name: Debug SSH connectivity
-          command: |
-            set -x
-            echo "HOST=$CENTOS_HOST USER=$CENTOS_USER"
-            nc -vz "$CENTOS_HOST" 22 || true
-            ssh -o ConnectTimeout=10 -v "${CENTOS_USER}@${CENTOS_HOST}" "echo ok"
-
-      - run:
-          name: Create directory on CentOS
-          command: |
-            : "${TARGET_DIR:=/srv/mydir}"
-            : "${SSH_PORT:=22}"
-            ssh -p "$SSH_PORT" "${CENTOS_USER}@${CENTOS_HOST}" \
-              "sudo mkdir -p '${TARGET_DIR}' && sudo chown ${CENTOS_USER}:${CENTOS_USER} '${TARGET_DIR}'"
-
+            : "${CISCO_HOST:?CISCO_HOST is required}"
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts
+            ssh -tt -o StrictHostKeyChecking=yes -o BatchMode=yes admin@"$CISCO_HOST" <<'EOS'
+            terminal length 0
+            configure terminal
+            hostname GP-Router
+            end
+            write memory
+            EOS
 workflows:
-  build:
+  config:
     jobs:
-      - mkdir_on_centos
+      - config_cisco
