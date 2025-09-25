@@ -2,26 +2,41 @@ version: 2.1
 jobs:
   config_cisco:
     machine: true
-    resource_class: network-test/circleci-test
+    resource_class: ciscotest-organizer/cisco001
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:xfRLHtQ9xrfDH5YiDgqH70aBa6o26LVvxCVmO+QUIOA"
       - run:
-          name: Configure Cisco Hostname
+          name: Prepare SSH
           command: |
             set -euo pipefail
             : "${CISCO_HOST:?CISCO_HOST is required}"
-            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
+            touch ~/.ssh/known_hosts
+            chmod 600 ~/.ssh/known_hosts
             ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts
-            ssh -tt -o StrictHostKeyChecking=yes -o BatchMode=yes admin@"$CISCO_HOST" <<'EOS'
+
+      - run:
+          name: Configure Cisco Hostname
+          command: |
+            ssh -tt \
+              -i ~/.ssh/id_rsa_cisco \
+              -o PreferredAuthentications=publickey \
+              -o PubkeyAuthentication=yes \
+              -o StrictHostKeyChecking=yes \
+              -o PubkeyAcceptedKeyTypes=+ssh-rsa \
+              -o HostKeyAlgorithms=+ssh-rsa \
+              -o KexAlgorithms=+diffie-hellman-group14-sha1 \
+              -o Ciphers=+aes256-cbc \
+              admin1@"$CISCO_HOST" <<'EOS'
             terminal length 0
             configure terminal
             hostname GP-Router
             end
             write memory
             EOS
+
 workflows:
   config:
     jobs:
       - config_cisco
+
