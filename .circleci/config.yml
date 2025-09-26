@@ -33,7 +33,7 @@ jobs:
               -o HostKeyAlgorithms=+ssh-rsa \
               -o KexAlgorithms=diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1 \
               -o Ciphers=+aes256-cbc \
-              admin1@192.168.3.194 \<<'EOS'
+              admin1@192.168.3.194 <<'EOS'
             terminal length 0
             configure terminal
             hostname GP-Router
