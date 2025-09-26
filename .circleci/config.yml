@@ -20,23 +20,17 @@ jobs:
           command: |
             ssh -tt \
               -i ~/.ssh/id_rsa_cisco \
-              -o PreferredAuthentications=publickey \
-              -o PubkeyAuthentication=yes \
-              -o StrictHostKeyChecking=yes \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
               -o PubkeyAcceptedKeyTypes=+ssh-rsa \
               -o HostKeyAlgorithms=+ssh-rsa \
-              -o KexAlgorithms=+diffie-hellman-group14-sha1 \
+              -o KexAlgorithms=diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1 \
               -o Ciphers=+aes256-cbc \
-              admin1@"$CISCO_HOST" \<<'EOS'
+              admin1@"$CISCO_HOST" <<'EOS'
             terminal length 0
             configure terminal
             hostname GP-Router
             end
             write memory
             EOS
-
-workflows:
-  config:
-    jobs:
-      - config_cisco #2025/9/27 0:15
 
