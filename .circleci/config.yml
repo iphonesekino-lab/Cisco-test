@@ -27,7 +27,7 @@ jobs:
               -o HostKeyAlgorithms=+ssh-rsa \
               -o KexAlgorithms=+diffie-hellman-group14-sha1 \
               -o Ciphers=+aes256-cbc \
-              admin1@"$CISCO_HOST" <<'EOS'
+              admin1@"$CISCO_HOST" \<<'EOS'
             terminal length 0
             configure terminal
             hostname GP-Router
