@@ -1,9 +1,16 @@
 version: 2.1
+
 jobs:
   config_cisco:
     machine: true
-    resource_class: ciscotest-organizer/cisco001
+    # 自前ランナーを使うなら正しい resource_class を指定。不要なら次の行を削除
+    resource_class: iphonesekino-lab/ciscotest001
     steps:
+      # CircleCI に登録した秘密鍵を ssh-agent に追加
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"  # ここをあなたの指紋に
+
       - run:
           name: Prepare SSH
           command: |
@@ -11,26 +18,31 @@ jobs:
             : "${CISCO_HOST:?CISCO_HOST is required}"
             mkdir -p ~/.ssh
             chmod 700 ~/.ssh
-            touch ~/.ssh/known_hosts
-            chmod 600 ~/.ssh/known_hosts
-            ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts
+            # 初回は accept-new。安全にやるなら known_hosts を固定値で書き込む
+            ssh -o StrictHostKeyChecking=accept-new -G "$CISCO_HOST" >/dev/null || true
 
       - run:
           name: Configure Cisco Hostname
           command: |
             ssh -tt \
-              -i ~/.ssh/id_rsa_cisco \
               -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=no \
+              -o PreferredAuthentications=publickey \
+              -o PubkeyAuthentication=yes \
+              -o StrictHostKeyChecking=no \   # 本番は yes/accept-new に置き換え推奨
               -o PubkeyAcceptedKeyTypes=+ssh-rsa \
               -o HostKeyAlgorithms=+ssh-rsa \
               -o KexAlgorithms=diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1 \
               -o Ciphers=+aes256-cbc \
-              admin1@"$CISCO_HOST" <<'EOS'
+              admin1@"$CISCO_HOST" \<<'EOS'
             terminal length 0
             configure terminal
             hostname GP-Router
             end
             write memory
             EOS
+
+workflows:
+  config:
+    jobs:
+      - config_cisco
 
