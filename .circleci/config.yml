@@ -3,73 +3,77 @@ version: 2.1
 jobs:
   config_cisco:
     machine: true
+    # 自前ランナーを使う場合だけ残す（不要なら削除可）
     resource_class: iphonesekino-lab/ciscotest001
-    steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"
 
-      # どの鍵がジョブに入っているか可視化
+    steps:
       - run:
-          name: Show the key actually used
+          name: Install sshpass (for password auth)
+          command: |
+            set -eux
+            if ! command -v sshpass >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y sshpass
+            fi
+
+      - run:
+          name: Prepare known_hosts
           command: |
             set -euxo pipefail
-            ssh-add -L || true
-            KEY="$(ls -1 ~/.ssh/id_rsa_* | head -n1 || true)"
-            echo "Using key: ${KEY:-<not found>}"
-            if [ -n "${KEY:-}" ]; then ssh-keygen -lf "$KEY"; fi
-
-      # 疎通スモークテスト（-vvv）
-      - run:
-          name: Smoke test (show clock with -vvv)
-          command: |
-            set -euo pipefail
             : "${CISCO_HOST:?CISCO_HOST is required}"
-
             mkdir -p ~/.ssh && chmod 700 ~/.ssh
-            touch ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
+            ssh-keygen -R "$CISCO_HOST" >/dev/null 2>&1 || true
             ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts || true
 
-            KEY="$(ls -1 ~/.ssh/id_rsa_* | head -n1)"
-            echo "Using key: $KEY"
-
-            ssh -vvv \
-              -i "$KEY" \
-              -o IdentitiesOnly=yes \
-              -o BatchMode=yes \
-              -o StrictHostKeyChecking=accept-new \
-              -o PubkeyAcceptedKeyTypes=+ssh-rsa \
-              -o HostKeyAlgorithms=+ssh-rsa \
-              -o KexAlgorithms=+diffie-hellman-group14-sha1 \
-              -o Ciphers=+aes256-cbc \
-              admin1@"$CISCO_HOST" "show clock"
-
-      # ここまで通ったら設定反映
       - run:
-          name: Configure Cisco Hostname
+          name: Smoke test (show clock via password auth)
           command: |
-            set -euo pipefail
-            KEY="$(ls -1 ~/.ssh/id_rsa_* | head -n1)"
+            set -euxo pipefail
+            : "${CISCO_HOST:?}"
+            : "${CISCO_USER:=admin1}"
+            : "${CISCO_PASS:=cisco1}"
+
+            # IOS 12.x 互換の暗号/KEX/ホスト鍵を明示
+            sshpass -p "$CISCO_PASS" ssh -vvv \
+              -o StrictHostKeyChecking=accept-new \
+              -o BatchMode=no \
+              -o PreferredAuthentications=password \
+              -o PubkeyAuthentication=no \
+              -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
+              -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
+              -o HostKeyAlgorithms=ssh-rsa \
+              -o PubkeyAcceptedKeyTypes=ssh-rsa \
+              "$CISCO_USER@$CISCO_HOST" "show clock"
+
+      - run:
+          name: Configure Cisco Hostname (password auth)
+          command: |
+            set -euxo pipefail
+            : "${CISCO_HOST:?}"
+            : "${CISCO_USER:=admin1}"
+            : "${CISCO_PASS:=cisco1}"
+
             { printf '%s\r\n' \
               'terminal length 0' \
               'configure terminal' \
               'hostname GP-Router' \
               'end' \
               'write memory'; } |
-            ssh -tt \
-              -i "$KEY" \
-              -o IdentitiesOnly=yes \
-              -o BatchMode=yes \
+            sshpass -p "$CISCO_PASS" ssh -tt \
               -o StrictHostKeyChecking=accept-new \
-              -o PubkeyAcceptedKeyTypes=+ssh-rsa \
-              -o HostKeyAlgorithms=+ssh-rsa \
-              -o KexAlgorithms=+diffie-hellman-group14-sha1 \
-              -o Ciphers=+aes256-cbc \
-              admin1@"$CISCO_HOST"
+              -o BatchMode=no \
+              -o PreferredAuthentications=password \
+              -o PubkeyAuthentication=no \
+              -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
+              -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
+              -o HostKeyAlgorithms=ssh-rsa \
+              -o PubkeyAcceptedKeyTypes=ssh-rsa \
+              "$CISCO_USER@$CISCO_HOST"
 
 workflows:
   config:
     jobs:
-      - config_cisco #2025/9/27 20:08    
+      - config_cisco #user/pass認証に変更2025/9/27　20:50
+
 
 
