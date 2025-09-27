@@ -3,14 +3,12 @@ version: 2.1
 jobs:
   config_cisco:
     machine: true
-    # 自前ランナーを使う場合だけ残す
-    resource_class: iphonesekino-lab/ciscotest001
+    resource_class: iphonesekino-lab/ciscotest001   # 自前ランナー
 
     steps:
-      # CircleCIに登録した秘密鍵をssh-agentにロード
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"  # ←あなたの fingerprint
+            - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"
 
       - run:
           name: Prepare SSH
@@ -21,26 +19,42 @@ jobs:
             mkdir -p ~/.ssh && chmod 700 ~/.ssh
             touch ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
 
-            # 初回は accept-new でホスト鍵をknown_hostsへ
-            ssh -o StrictHostKeyChecking=accept-new -G "$CISCO_HOST" >/dev/null || true
+            # ホスト鍵登録（初回）
             ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts || true
 
-            # デバッグ
             which ssh
             ssh -V
             echo "---- supported ciphers ----"
             ssh -Q cipher | tr '\n' ' ' && echo
-            echo "---- effective (per-host) params ----"
+            echo "---- effective per-host params ----"
             ssh -G "$CISCO_HOST" | egrep '^(ciphers|kexalgorithms|macs|hostkeyalgorithms)'
 
-            # いまagentに載っている鍵を確認
+            echo "---- keys in agent ----"
             ssh-add -L || true
 
+      # 1) まず疎通だけ確認（詳細ログ付き）
+      - run:
+          name: Smoke test (show clock with -vvv)
+          command: |
+            set -euxo pipefail
+            ssh -vvv \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o PreferredAuthentications=publickey \
+              -o PubkeyAuthentication=yes \
+              -o StrictHostKeyChecking=accept-new \
+              -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
+              -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
+              -o MACs=hmac-sha1,hmac-sha1-96,hmac-md5,hmac-md5-96 \
+              -o HostKeyAlgorithms=ssh-rsa \
+              -o PubkeyAcceptedKeyTypes=ssh-rsa \
+              admin1@"$CISCO_HOST" "show clock"
+
+      # 2) 通ったらコンフィグ投入
       - run:
           name: Configure Cisco Hostname
           command: |
             set -euxo pipefail
-
             { printf '%s\r\n' \
               'terminal length 0' \
               'configure terminal' \
@@ -50,6 +64,8 @@ jobs:
             | ssh -tt \
                 -o IdentitiesOnly=yes \
                 -o BatchMode=yes \
+                -o PreferredAuthentications=publickey \
+                -o PubkeyAuthentication=yes \
                 -o StrictHostKeyChecking=accept-new \
                 -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
                 -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
