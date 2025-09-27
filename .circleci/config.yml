@@ -10,6 +10,13 @@ jobs:
             - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"
 
       - run:
+        name: Show the key actually used
+        command: |
+          set -euxo pipefail
+          ssh-add -L || true                     # ここに公開鍵本文が出ます（ssh-rsa …）
+          KEY="$(ls -1 ~/.ssh/id_rsa_* | head -n1)"
+          echo "Using key: $KEY"
+          ssh-keygen -lf "$KEY"                  # ここに SHA256 指紋が出ます
           name: Smoke test (show clock with -vvv)
           command: |
             set -euo pipefail
