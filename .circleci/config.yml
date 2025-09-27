@@ -25,9 +25,15 @@ jobs:
             ssh -o StrictHostKeyChecking=accept-new -G "$CISCO_HOST" >/dev/null || true
             ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts || true
 
-            # デバッグ（任意）
+            # デバッグ
+            which ssh
             ssh -V
+            echo "---- supported ciphers ----"
             ssh -Q cipher | tr '\n' ' ' && echo
+            echo "---- effective (per-host) params ----"
+            ssh -G "$CISCO_HOST" | egrep '^(ciphers|kexalgorithms|macs|hostkeyalgorithms)'
+
+            # いまagentに載っている鍵を確認
             ssh-add -L || true
 
       - run:
@@ -56,5 +62,3 @@ workflows:
   config:
     jobs:
       - config_cisco
-
-
