@@ -64,6 +64,12 @@ jobs:
               -o PubkeyAcceptedKeyTypes=+ssh-rsa \
               -o HostKeyAlgorithms=+ssh-rsa \
               -o KexAlgorithms=+diffie-hellman-group14-sha1 \
-              -o Ciphers=+
+              -o Ciphers=+aes256-cbc \
+              admin1@"$CISCO_HOST"
+
+workflows:
+  config:
+    jobs:
+      - config_cisco
 
 
