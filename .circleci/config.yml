@@ -3,41 +3,53 @@ version: 2.1
 jobs:
   config_cisco:
     machine: true
-    resource_class: iphonesekino-lab/ciscotest001   # 自前ランナーで実行
+    # 自前ランナーを使う場合だけ残す
+    resource_class: iphonesekino-lab/ciscotest001
+
     steps:
+      # CircleCIに登録した秘密鍵をssh-agentにロード
       - add_ssh_keys:
           fingerprints:
-            - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"
+            - "SHA256:dIvzWtrElGUvggTmVlPR+PKZCRgFBk21NtDmumXjA4M"  # ←あなたの fingerprint
 
       - run:
           name: Prepare SSH
           command: |
             set -euxo pipefail
             : "${CISCO_HOST:?CISCO_HOST is required}"
+
             mkdir -p ~/.ssh && chmod 700 ~/.ssh
             touch ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
-            # 初回は known_hosts を作る
+
+            # 初回は accept-new でホスト鍵をknown_hostsへ
+            ssh -o StrictHostKeyChecking=accept-new -G "$CISCO_HOST" >/dev/null || true
             ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts || true
-            # 鍵がエージェントに入っているか確認（デバッグ用）
+
+            # デバッグ（任意）
+            ssh -V
+            ssh -Q cipher | tr '\n' ' ' && echo
             ssh-add -L || true
 
       - run:
           name: Configure Cisco Hostname
           command: |
             set -euxo pipefail
-            { printf '%s\n' \
-                'terminal length 0' \
-                'configure terminal' \
-                'hostname GP-Router' \
-                'end' \
-                'write memory'; } \
+
+            { printf '%s\r\n' \
+              'terminal length 0' \
+              'configure terminal' \
+              'hostname GP-Router' \
+              'end' \
+              'write memory'; } \
             | ssh -tt \
                 -o IdentitiesOnly=yes \
-                -o StrictHostKeyChecking=no \
-                -o PubkeyAcceptedKeyTypes=+ssh-rsa \
-                -o HostKeyAlgorithms=+ssh-rsa \
-                -o KexAlgorithms=+diffie-hellman-group14-sha1 \
-                -o Ciphers=+aes256-cbc \
+                -o BatchMode=yes \
+                -o StrictHostKeyChecking=accept-new \
+                -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
+                -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
+                -o MACs=hmac-sha1,hmac-sha1-96,hmac-md5,hmac-md5-96 \
+                -o HostKeyAlgorithms=ssh-rsa \
+                -o PubkeyAcceptedKeyTypes=ssh-rsa \
                 admin1@"$CISCO_HOST"
 
 workflows:
