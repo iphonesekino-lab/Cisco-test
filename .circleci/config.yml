@@ -55,6 +55,7 @@ jobs:
 
             { printf '%s\r\n' \
               'terminal length 0' \
+              'enable' \
               'configure terminal' \
               'hostname GP-Router' \
               'end' \
