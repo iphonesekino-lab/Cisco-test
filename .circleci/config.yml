@@ -3,9 +3,7 @@ version: 2.1
 jobs:
   config_cisco:
     machine: true
-    # 自前ランナーを使う場合だけ残す（不要なら削除可）
     resource_class: iphonesekino-lab/ciscotest001
-
     steps:
       - run:
           name: Install sshpass (for password auth)
@@ -26,55 +24,40 @@ jobs:
             ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts || true
 
       - run:
-          name: Smoke test (show clock via password auth)
+          name: Configure Cisco Hostname (password auth + enable)
           command: |
             set -euxo pipefail
             : "${CISCO_HOST:?}"
             : "${CISCO_USER:=admin1}"
             : "${CISCO_PASS:=cisco1}"
+            : "${CISCO_ENABLE:=${CISCO_ENABLE:-cisco1}}"
 
-            # IOS 12.x 互換の暗号/KEX/ホスト鍵を明示
-            sshpass -p "$CISCO_PASS" ssh -vvv \
-              -o StrictHostKeyChecking=accept-new \
-              -o BatchMode=no \
-              -o PreferredAuthentications=password \
-              -o PubkeyAuthentication=no \
-              -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
-              -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
-              -o HostKeyAlgorithms=ssh-rsa \
-              -o PubkeyAcceptedKeyTypes=ssh-rsa \
-              "$CISCO_USER@$CISCO_HOST" "show clock"
-
-      - run:
-          name: Configure Cisco Hostname (password auth)
-          command: |
-            set -euxo pipefail
-            : "${CISCO_HOST:?}"
-            : "${CISCO_USER:=admin1}"
-            : "${CISCO_PASS:=cisco1}"
-
-            { printf '%s\r\n' \
-              'terminal length 0' \
-              'enable' \
-              'configure terminal' \
-              'hostname GP-Router' \
-              'end' \
-              'write memory'; } |
-            sshpass -p "$CISCO_PASS" ssh -tt \
-              -o StrictHostKeyChecking=accept-new \
-              -o BatchMode=no \
-              -o PreferredAuthentications=password \
-              -o PubkeyAuthentication=no \
-              -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
-              -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
-              -o HostKeyAlgorithms=ssh-rsa \
-              -o PubkeyAcceptedKeyTypes=ssh-rsa \
-              "$CISCO_USER@$CISCO_HOST"
-
+            # ここで enable パスワードも流し込むことが重要
+            {
+              printf '%s\r\n' \
+                'terminal length 0' \
+                'enable' \
+                "${CISCO_ENABLE}" \
+                'configure terminal' \
+                'no ip domain-lookup' \
+                'hostname GP-Router' \
+                'end' \
+                'write memory';
+            } | sshpass -p "$CISCO_PASS" ssh -tt \
+                  -o StrictHostKeyChecking=accept-new \
+                  -o BatchMode=no \
+                  -o PreferredAuthentications=password \
+                  -o PubkeyAuthentication=no \
+                  -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
+                  -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
+                  -o HostKeyAlgorithms=ssh-rsa \
+                  -o PubkeyAcceptedKeyTypes=ssh-rsa \
+                  "${CISCO_USER}@${CISCO_HOST}"
 workflows:
   config:
     jobs:
-      - config_cisco #user/pass認証に変更2025/9/27　20:50
+      - config_cisco #2025/9/27 21:18
+
 
 
 
