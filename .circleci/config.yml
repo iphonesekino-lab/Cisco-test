@@ -28,9 +28,9 @@ jobs:
           command: |
             set -euxo pipefail
             : "${CISCO_HOST:?}"
-            : "${CISCO_USER:=admin1}"
-            : "${CISCO_PASS:=cisco1}"
-            : "${CISCO_ENABLE:=${CISCO_ENABLE:-cisco1}}"
+            : "${CISCO_USER:?CISCO_USER is required (set in Project env vars)}"
+            : "${CISCO_PASS:?CISCO_PASS is required (set in Project env vars)}"
+            : "${CISCO_ENABLE:?CISCO_ENABLE is required (set in Project env vars)}"
 
             # ここで enable パスワードも流し込むことが重要
             {
