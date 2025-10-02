@@ -11,24 +11,31 @@ jobs:
             if ! command -v sshpass >/dev/null 2>&1; then
               sudo apt-get update
               sudo apt-get install -y sshpass
-            fi      - run:
+            fi
+      - run:
           name: Configure 3 Cisco devices (password auth + enable)
           command: |
-            set -euo pipefail            # ---- 必須環境変数 ----
+            set -euo pipefail
+            # ---- 必須環境変数 ----
             : "${CISCO_USER:?CISCO_USER is required}"
             : "${CISCO_PASS:?CISCO_PASS is required}"
-            : "${CISCO_ENABLE:?CISCO_ENABLE is required}"            # ---- ホスト一覧を環境変数から組み立て ----
+            : "${CISCO_ENABLE:?CISCO_ENABLE is required}"
+            # ---- ホスト一覧を環境変数から組み立て ----
             HOSTS="${CISCO_HOSTS:-}"
             if [ -z "$HOSTS" ]; then
               HOSTS="${CISCO_HOST1:-} ${CISCO_HOST2:-} ${CISCO_HOST3:-}"
-            fi            echo "Target hosts: $HOSTS"            # ---- each host ----
+            fi
+            echo "Target hosts: $HOSTS"
+            # ---- each host ----
             for H in $HOSTS; do
               [ -n "$H" ] || continue
-              echo "===== Start $H ====="              # known_hosts 準備（ホスト鍵変化にも対応）
+              echo "===== Start $H ====="
+              # known_hosts 準備（ホスト鍵変化にも対応）
               mkdir -p ~/.ssh && chmod 700 ~/.ssh
               touch ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
               ssh-keygen -R "$H" >/dev/null 2>&1 || true
-              ssh-keyscan -T 10 -H "$H" >> ~/.ssh/known_hosts || true              # スモークテスト（show clock）
+              ssh-keyscan -T 10 -H "$H" >> ~/.ssh/known_hosts || true
+              # スモークテスト（show clock）
               echo "--- Smoke test: show clock on $H ---"
               sshpass -p "$CISCO_PASS" ssh -o StrictHostKeyChecking=accept-new \
                 -o BatchMode=no \
@@ -38,7 +45,8 @@ jobs:
                 -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
                 -o HostKeyAlgorithms=ssh-rsa \
                 -o PubkeyAcceptedKeyTypes=ssh-rsa \
-                "${CISCO_USER}@${H}" "show clock"              # 設定投入（enable 必須。IOS 12.x 向けの古い暗号群を明示）
+                "${CISCO_USER}@${H}" "show clock"
+              # 設定投入（enable 必須。IOS 12.x 向けの古い暗号群を明示）
               echo "--- Configure hostname on $H ---"
               {
                 printf '%s\r\n' \
@@ -59,8 +67,10 @@ jobs:
                     -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
                     -o HostKeyAlgorithms=ssh-rsa \
                     -o PubkeyAcceptedKeyTypes=ssh-rsa \
-                    "${CISCO_USER}@${H}"              echo "===== Done  $H ====="
-            doneworkflows:
+                    "${CISCO_USER}@${H}"
+              echo "===== Done  $H ====="
+            done
+workflows:
   config:
     jobs:
       - config_cisco  #2025/10/2 修正
