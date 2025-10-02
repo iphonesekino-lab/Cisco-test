@@ -6,30 +6,49 @@ jobs:
     resource_class: iphonesekino-lab/ciscotest001   # ←自前ランナー
     steps:
       - checkout
+
+      # pip を用意（どちらかで成功するよう二段構え）
       - run:
-          name: Install deps
+          name: Install Python/pip on runner
           command: |
+            set -euxo pipefail
+            if ! command -v python3 >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y python3
+            fi
+            # ensurepip があればまず試す
+            if ! python3 -m pip -V >/dev/null 2>&1; then
+              python3 -m ensurepip --upgrade || true
+            fi
+            # まだ pip が無ければ apt で入れる
+            if ! python3 -m pip -V >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y python3-pip ca-certificates
+            fi
             python3 -m pip install --upgrade pip
-            pip install requests
+            python3 -m pip install requests
+
       - run:
-          name: Sanity check to FortiGate
+          name: Sanity: reach FortiGate:443
           command: |
             set -euxo pipefail
             : "${FGT_HOST:?FGT_HOST is required}"
-            # 443/TCP 到達性チェック
-            timeout 5 bash -c "cat < /dev/null > /dev/tcp/${FGT_HOST}/443" && echo "443 reachable"
+            timeout 5 bash -c "cat </dev/null >/dev/tcp/${FGT_HOST}/443"
+            echo "443 reachable"
+
       - run:
           name: Change FortiGate hostname via API
           command: |
             set -euo pipefail
             : "${FGT_HOST:?FGT_HOST is required}"
             : "${FGT_API_TOKEN:?FGT_API_TOKEN is required}"
-            python fortigate_config.py --hostname GP-FortiGate
+            python3 fortigate_config.py --hostname GP-FortiGate
 
 workflows:
   config:
     jobs:
       - config_fortigate
+
 
 
 
