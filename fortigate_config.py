@@ -1,4 +1,4 @@
-python: fortigate_config.py
+python
 
 #!/usr/bin/env python3
 import os
