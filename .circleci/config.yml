@@ -2,28 +2,34 @@ version: 2.1
 
 jobs:
   config_fortigate:
-    docker:
-      - image: cimg/base:stable
+    machine: true
+    resource_class: iphonesekino-lab/ciscotest001   # ←自前ランナー
     steps:
+      - checkout
       - run:
-          name: Install curl & jq
+          name: Install deps
           command: |
-            sudo apt-get update && sudo apt-get install -y curl jq
-
+            python3 -m pip install --upgrade pip
+            pip install requests
       - run:
-          name: Change FortiGate hostname via API
+          name: Sanity check to FortiGate
           command: |
             set -euxo pipefail
             : "${FGT_HOST:?FGT_HOST is required}"
+            # 443/TCP 到達性チェック
+            timeout 5 bash -c "cat < /dev/null > /dev/tcp/${FGT_HOST}/443" && echo "443 reachable"
+      - run:
+          name: Change FortiGate hostname via API
+          command: |
+            set -euo pipefail
+            : "${FGT_HOST:?FGT_HOST is required}"
             : "${FGT_API_TOKEN:?FGT_API_TOKEN is required}"
-
-            curl -k -X PUT "https://${FGT_HOST}/api/v2/cmdb/system/global" \
-              -H "Authorization: Bearer ${FGT_API_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d '{"hostname": "GP-FortiGate"}'
+            python fortigate_config.py --hostname GP-FortiGate
 
 workflows:
   config:
     jobs:
       - config_fortigate
+
+
 
