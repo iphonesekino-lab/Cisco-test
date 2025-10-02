@@ -18,7 +18,7 @@ def api_request(host: str, token: str, method: str, path: str, **kwargs):
     method: "GET" | "POST" | "PUT" | "DELETE"
     path  : 先頭にスラッシュ無し e.g. "api/v2/cmdb/system/global"
     """
-    base = f"http://{host}/"
+    base = f"https://{host}/"
     url = urljoin(base, path)
     headers = {
         "Authorization": f"Bearer {token}",
