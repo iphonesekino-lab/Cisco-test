@@ -1,37 +1,62 @@
 version: 2.1
 
 jobs:
-  config_fortigate:
+  config_cisco:
     machine: true
-    resource_class: iphonesekino-lab/fortigatetest001
+    resource_class: iphonesekino-lab/ciscotest001
     steps:
-      - checkout
+      - run:
+          name: Install sshpass (for password auth)
+          command: |
+            set -eux
+            if ! command -v sshpass >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y sshpass
+            fi
 
       - run:
-          name: Setup Python virtual environment
+          name: Prepare known_hosts
           command: |
-            set -euo pipefail
-            python3 -m venv .venv
-            . .venv/bin/activate
-            python -m pip install --upgrade pip
-            pip install requests
+            set -euxo pipefail
+            : "${CISCO_HOST:?CISCO_HOST is required}"
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            ssh-keygen -R "$CISCO_HOST" >/dev/null 2>&1 || true
+            ssh-keyscan -T 10 -H "$CISCO_HOST" >> ~/.ssh/known_hosts || true
 
       - run:
-          name: Change FortiGate hostname via API
+          name: Configure Cisco Hostname (password auth + enable)
           command: |
-            set -euo pipefail
-            . .venv/bin/activate
-            : "${FGT_HOST:?FGT_HOST is required}"
-            : "${FGT_API_TOKEN:?FGT_API_TOKEN is required}"
-            python fortigate_config.py \
-              --scheme https \
-              --port "${FGT_PORT:-443}" \
-              --hostname "GP-FortiGate"
-
+            set -euxo pipefail
+            : "${CISCO_HOST:?}"
+            : "${CISCO_USER:?CISCO_USER is required (set in Project env vars)}"
+            : "${CISCO_PASS:?CISCO_PASS is required (set in Project env vars)}"
+             : "${CISCO_ENABLE:?CISCO_ENABLE is required (set in Project env vars)}"
+            # ここで enable パスワードも流し込むことが重要
+            {
+              printf '%s\r\n' \
+                'terminal length 0' \
+                'enable' \
+                "${CISCO_ENABLE}" \
+                'configure terminal' \
+                'no ip domain-lookup' \
+                'hostname GP-Router' \
+                'end' \
+                'write memory';
+            } | sshpass -p "$CISCO_PASS" ssh -tt \
+                  -o StrictHostKeyChecking=accept-new \
+                  -o BatchMode=no \
+                  -o PreferredAuthentications=password \
+                  -o PubkeyAuthentication=no \
+                  -o Ciphers=aes256-cbc,aes192-cbc,aes128-cbc,3des-cbc \
+                  -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 \
+                  -o HostKeyAlgorithms=ssh-rsa \
+                  -o PubkeyAcceptedKeyTypes=ssh-rsa \
+                  "${CISCO_USER}@${CISCO_HOST}"
 workflows:
   config:
     jobs:
-      - config_fortigate
+      - config_cisco #2025/9/27 21:18
+
 
 
 
